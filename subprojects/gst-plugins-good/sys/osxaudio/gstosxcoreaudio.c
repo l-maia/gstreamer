@@ -144,7 +144,7 @@ gboolean
 gst_core_audio_open (GstCoreAudio * core_audio)
 {
   OSStatus status;
-
+  int retry=5;
   /* core_audio->osxbuf is already locked at this point */
   core_audio->cached_caps_valid = FALSE;
   gst_caps_replace (&core_audio->cached_caps, NULL);
@@ -168,16 +168,26 @@ gst_core_audio_open (GstCoreAudio * core_audio)
         "listener for AudioUnit: %d", (int) status);
   }
 
+  /*Due to a bug in audiounit with callkit, it may fail for a few ms
+  after the didactivate callback*/
+  while(retry >= 0){ 
+
   /* Initialize the AudioUnit. We keep the audio unit initialized early so that
    * we can probe the underlying device. */
   status = AudioUnitInitialize (core_audio->audiounit);
   if (status) {
-    GST_ERROR_OBJECT (core_audio, "Failed to initialize AudioUnit: %d",
-        (int) status);
-    return FALSE;
+    GST_WARNING ("Failed to initialize AudioUnit, retrying");
   }
+  else{
+    return TRUE;
+  }
+    retry--;
+    usleep(100000);
+  }
+  GST_ERROR_OBJECT (core_audio, "Failed to initialize AudioUnit: %d",
+        (int) status);
 
-  return TRUE;
+  return FALSE;
 }
 
 gboolean
